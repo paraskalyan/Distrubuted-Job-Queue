@@ -11,7 +11,7 @@ export const emailProducer = async (payload: any) => {
       status: "PENDING",
     };
 
-    await redis.lpush("emailQueue", JSON.stringify(data));
+    await redis.lpush("emailQueue:pending", JSON.stringify(data));
 
     console.log("Job added");
   } catch (error) {}
