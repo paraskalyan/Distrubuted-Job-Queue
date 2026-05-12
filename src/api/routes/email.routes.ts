@@ -3,6 +3,6 @@ import { jobController } from '../controllers/email.controller.js';
 
 const router = express.Router();
 
-router.post('/jobs', jobController);
+router.post('/', jobController);
 
 export default router;
