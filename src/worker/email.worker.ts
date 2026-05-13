@@ -4,21 +4,28 @@ export const emailWorker = async () => {
   while (true) {
     let parsedJob = null;
     try {
-        console.log("control")
       const job = await redis.brpoplpush("emailQueue:pending", "emailQueue:processing", 0);
       console.log(job);
-      console.log("control 2")
       if (job) {
-        const [, data] = job;
-        if(!data) return;
-        parsedJob = JSON.parse(data);
+        parsedJob = JSON.parse(job);
         await sendEmail(parsedJob);
+        await redis.lrem("emailQueue:processing",1, JSON.stringify(job));
       }
     } catch (error) {
       if (parsedJob) {
         parsedJob.attempts++;
         if (parsedJob.attempts <= parsedJob.maxAttempts) {
-          await redis.lpush("emailQueue", JSON.stringify(parsedJob));
+          await redis.lpush("emailQueue:pending", JSON.stringify(parsedJob));
+        }
+        else{
+            const data = {
+                id: crypto.randomUUID(),
+                attempts: parsedJob.attempts,
+                maxAttempts: parsedJob.maxAttempts,
+                failedAt: Date.now(),
+                failureReason: error,
+            }
+            await redis.lpush("emailQueue:dlq", JSON.stringify(data));
         }
       }
     }
