@@ -9,7 +9,9 @@ export const emailWorker = async () => {
         "emailQueue:processing",
         0,
       );
+
       console.log(job);
+
       if (job) {
         parsedJob = JSON.parse(job);
         parsedJob.processingStartedAt = Date.now();
@@ -19,20 +21,33 @@ export const emailWorker = async () => {
         await redis.lrem("emailQueue:processing", 1, JSON.stringify(job));
         console.log(`Processing job: ${parsedJob.id}`);
       }
-    } catch (error) {
+    } 
+    catch (error) {
       if (parsedJob) {
+        console.error("Job failed:", error);
+        if (!parsedJob) continue;
+
+        await redis.lrem("emailQueue:processing", 1, JSON.stringify(parsedJob));
+
         parsedJob.attempts++;
+        parsedJob.updatedAt = Date.now();
+        parsedJob.lastFailureReason =
+          error instanceof Error ? error.message : "Unknown error";
+
         if (parsedJob.attempts <= parsedJob.maxAttempts) {
           await redis.lpush("emailQueue:pending", JSON.stringify(parsedJob));
         } else {
           const data = {
-            id: crypto.randomUUID(),
+            dlqId: crypto.randomUUID(),
             attempts: parsedJob.attempts,
             maxAttempts: parsedJob.maxAttempts,
             failedAt: Date.now(),
-            failureReason: error,
+            failureReason:
+              error instanceof Error ? error.message : "Unknown Error",
           };
           await redis.lpush("emailQueue:dlq", JSON.stringify(data));
+          
+          console.log(`Job moved to DLQ: ${parsedJob.id}`);
         }
       }
     }
