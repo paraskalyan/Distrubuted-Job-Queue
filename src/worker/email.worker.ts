@@ -22,10 +22,11 @@ export const emailWorker = async () => {
         console.log(`Processing job: ${parsedJob.id}`);
         await sendEmail(parsedJob);
         await redis.lrem("emailQueue:processing", 1, JSON.stringify(job));
-        console.log(`Processing job: ${parsedJob.id}`);
+        await redis.incr("metrics:completed");
       }
     } catch (error) {
       if (parsedJob) {
+        await redis.incr("metrics:failed");
         console.error("Job failed:", error);
         if (!parsedJob) continue;
 
@@ -38,6 +39,7 @@ export const emailWorker = async () => {
 
         if (parsedJob.attempts <= parsedJob.maxAttempts) {
           await redis.lpush("emailQueue:pending", JSON.stringify(parsedJob));
+          await redis.incr("metrics:retried");
         } else {
           const data = {
             dlqId: crypto.randomUUID(),
@@ -48,6 +50,7 @@ export const emailWorker = async () => {
               error instanceof Error ? error.message : "Unknown Error",
           };
           await redis.lpush("emailQueue:dlq", JSON.stringify(data));
+          await redis.incr("metrics:dlq");
 
           console.log(`Job moved to DLQ: ${parsedJob.id}`);
         }
