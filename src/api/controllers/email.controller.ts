@@ -8,7 +8,7 @@ export const jobController = async (req: Request, res: Response) => {
         await emailProducer(data);
         res.json({message: 'Job added'});
     } catch (error) {
-        console.log(error);
+        res.status(500).json({status: 'error', message: 'Some error occurred'});
     }
 }
 
