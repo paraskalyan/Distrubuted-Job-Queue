@@ -1,6 +1,7 @@
 import redis from "../lib/redis.js";
 
 const VISIBILITY_TIMEOUT = 30 * 1000;
+const HEARTBEAT_TIMEOUT = 15 * 1000;
 
 export const recoveryWorker = async () => {
   while (true) {
@@ -12,10 +13,13 @@ export const recoveryWorker = async () => {
         const parsedJob = JSON.parse(rawJob);
 
         const now = Date.now();
+        const workerId = parsedJob.workerId;
+        const heartbeat = await redis.hget('workers:heartbeat', workerId);
 
         const processingTime = now - parsedJob.processingStartedAt;
+        const heartbeatTime = now - Number(heartbeat ?? 0);
 
-        const isStale = processingTime > VISIBILITY_TIMEOUT;
+        const isStale = processingTime > VISIBILITY_TIMEOUT && heartbeatTime > HEARTBEAT_TIMEOUT;
 
         if (isStale) {
           console.log(`Recovering stale job: ${parsedJob.id}`);
