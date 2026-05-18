@@ -1,6 +1,6 @@
 import redis from "../lib/redis.js";
 
-const workerId = "worker-1";
+const workerId = crypto.randomUUID();
 
 export const emailWorker = async () => {
   startHeartbeat();
