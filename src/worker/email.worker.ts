@@ -1,6 +1,9 @@
 import redis from "../lib/redis.js";
 
+const workerId = "worker-1";
+
 export const emailWorker = async () => {
+  startHeartbeat();
   while (true) {
     let parsedJob = null;
     try {
@@ -15,14 +18,13 @@ export const emailWorker = async () => {
       if (job) {
         parsedJob = JSON.parse(job);
         parsedJob.processingStartedAt = Date.now();
-        parsedJob.workerId = "worker-1";
+        parsedJob.workerId = workerId;
         console.log(`Processing job: ${parsedJob.id}`);
         await sendEmail(parsedJob);
         await redis.lrem("emailQueue:processing", 1, JSON.stringify(job));
         console.log(`Processing job: ${parsedJob.id}`);
       }
-    } 
-    catch (error) {
+    } catch (error) {
       if (parsedJob) {
         console.error("Job failed:", error);
         if (!parsedJob) continue;
@@ -46,7 +48,7 @@ export const emailWorker = async () => {
               error instanceof Error ? error.message : "Unknown Error",
           };
           await redis.lpush("emailQueue:dlq", JSON.stringify(data));
-          
+
           console.log(`Job moved to DLQ: ${parsedJob.id}`);
         }
       }
@@ -61,4 +63,10 @@ const sendEmail = async (job: any) => {
       reject(true);
     }, 3000);
   });
+};
+
+const startHeartbeat = () => {
+  setInterval(async () => {
+    await redis.hset("workers:heartbeat", workerId, Date.now());
+  }, 5000);
 };
